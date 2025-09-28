@@ -20,7 +20,7 @@ package avry_agent_pkg;
   endclass
 
   // --------------------------------------------------------------------------
-  // Driver: matches simple_bus_if (valid/ready/we/addr/wdata/rdata)
+  // Driver (matches simple_bus_if with req/gnt/we/waddr/wdata/re/raddr/rdata/rvalid)
   // --------------------------------------------------------------------------
   class avry_driver extends uvm_driver #(avry_seq_item);
     `uvm_component_utils(avry_driver)
@@ -40,28 +40,45 @@ package avry_agent_pkg;
 
     task run_phase(uvm_phase phase);
       avry_seq_item t;
-      // init idle
-      vif.valid <= 1'b0;
-      vif.we    <= 1'b0;
-      vif.addr  <= '0;
-      vif.wdata <= '0;
+
+      // Initialize interface to idle
+      vif.req    <= 1'b0;
+      vif.we     <= 1'b0;
+      vif.re     <= 1'b0;
+      vif.waddr  <= '0;
+      vif.wdata  <= '0;
+      vif.raddr  <= '0;
 
       forever begin
         seq_item_port.get_next_item(t);
 
-        // one-beat handshake
+        // Present request depending on op type
         @(posedge vif.clk);
-        vif.we    <= t.we;
-        vif.addr  <= t.addr;
-        vif.wdata <= t.data;
-        vif.valid <= 1'b1;
+        if (t.we) begin
+          // WRITE transaction
+          vif.we    <= 1'b1;
+          vif.re    <= 1'b0;
+          vif.waddr <= t.addr;
+          vif.wdata <= t.data;
+        end
+        else begin
+          // READ transaction
+          vif.we    <= 1'b0;
+          vif.re    <= 1'b1;
+          vif.raddr <= t.addr;
+        end
+        vif.req <= 1'b1;
 
-        // wait until DUT ready
-        do @(posedge vif.clk); while (!vif.ready);
+        // Wait for gnt
+        do @(posedge vif.clk); while (!vif.gnt);
 
-        // return to idle
+        // Deassert request/controls next cycle
         @(posedge vif.clk);
-        vif.valid <= 1'b0;
+        vif.req <= 1'b0;
+        vif.we  <= 1'b0;
+        vif.re  <= 1'b0;
+
+        // (Optional) For reads, one could wait for rvalid and capture data here.
 
         seq_item_port.item_done();
       end
@@ -69,7 +86,9 @@ package avry_agent_pkg;
   endclass
 
   // --------------------------------------------------------------------------
-  // Monitor: simple events on handshake (write→intr, read→viral)
+  // Monitor: simple event extraction
+  //   - Count a write grant as "interrupt-like" event (intr_ap)
+  //   - Count an rvalid (read data return) as "viral-like" event (viral_ap)
   // --------------------------------------------------------------------------
   class avry_monitor extends uvm_component;
     `uvm_component_utils(avry_monitor)
@@ -95,10 +114,9 @@ package avry_agent_pkg;
     task run_phase(uvm_phase phase);
       forever begin
         @(posedge vif.clk);
-        if (vif.valid && vif.ready) begin
-          if (vif.we) intr_ap.write(1);
-          else        viral_ap.write(1);
-        end
+        // simple policies for demo/coverage hooks:
+        if (vif.gnt && vif.we)      intr_ap.write(1); // writes granted
+        if (vif.rvalid)             viral_ap.write(1); // any read completion
       end
     endtask
   endclass

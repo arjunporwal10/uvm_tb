@@ -1,50 +1,36 @@
-// Simple DUT that implements a one-beat VALID/READY handshake
-// Interface: simple_bus_if.dut (see simple_bus_if.sv)
+// src/dut/simple_dut.sv
+module simple_dut(simple_bus_if.dut bus);
+    logic [31:0] mem [0:255];
 
-module simple_dut (
-  simple_bus_if.dut bus
-);
+    always_ff @(posedge bus.clk or negedge bus.rst_n) begin
+        if (!bus.rst_n) begin
+            for (int i = 0; i < 256; i++)
+                mem[i] <= '0;
+            bus.rdata     <= '0;
+            bus.rvalid    <= 0;
+            bus.gnt       <= 0;
+            bus.intr      <= 0;
+            bus.viral_state <= 0;
+        end else begin
+            bus.gnt <= bus.req;
 
-  // Simple 1KB memory (256 x 32-bit)
-  logic [31:0] mem [0:255];
+            if (bus.we) begin
+                mem[bus.waddr] <= bus.wdata;
+            end
 
-  // Reset memory on power-up (optional)
-  initial begin : init_mem
-    integer i;
-    for (i = 0; i < 256; i = i + 1) mem[i] = '0;
-  end
+            if (bus.re) begin
+                bus.rdata  <= mem[bus.raddr];
+                bus.rvalid <= 1;
+            end else begin
+                bus.rvalid <= 0;
+            end
 
-  // Address decode (word address from [9:2])
-  function automatic int unsigned word_index(input logic [31:0] a);
-    word_index = a[9:2];
-  endfunction
-
-  // Simple handshake: READY is high whenever out of reset (single-cycle ready)
-  // Reads return rdata = mem[addr] on the same cycle as VALID&READY (simple model)
-  // Writes update mem[addr] on VALID&READY when we==1
-  always_ff @(posedge bus.clk or negedge bus.rst_n) begin
-    if (!bus.rst_n) begin
-      bus.ready <= 1'b0;
-      bus.rdata <= '0;
-    end
-    else begin
-      bus.ready <= 1'b1; // always ready (no backpressure)
-
-      // Serve read data by default (combinational read sampled on clk)
-      // If you prefer registered read latency, move this into the if(valid) block.
-      bus.rdata <= mem[word_index(bus.addr)];
-
-      if (bus.valid && bus.ready) begin
-        if (bus.we) begin
-          // WRITE
-          mem[word_index(bus.addr)] <= bus.wdata;
+            // Raise interrupt if read data = magic pattern
+            if (bus.rdata == 32'hDEAD_BEEF)
+                bus.intr <= 1;
+            else
+                bus.intr <= 0;
         end
-        else begin
-          // READ: rdata already set from mem above
-        end
-      end
     end
-  end
-
 endmodule
 
