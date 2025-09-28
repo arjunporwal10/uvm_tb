@@ -1,0 +1,10 @@
+scenario_name: full_protocol
+scenario_id: SCENARIO_FULL_PROTOCOL
+autobuild_enabled: true
+reset_after: true
+num_writes: 256
+num_reads: 64
+inject_errors: true
+viral_check: true
+wait_timeout_value: 500
+

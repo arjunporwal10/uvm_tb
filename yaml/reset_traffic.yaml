@@ -1,0 +1,10 @@
+scenario_name: reset_traffic
+scenario_id: SCENARIO_REG_TRAFFIC
+autobuild_enabled: true
+reset_after: true
+num_writes: 64
+num_reads: 0
+inject_errors: false
+viral_check: false
+wait_timeout_value: 500
+

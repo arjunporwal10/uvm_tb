@@ -1,0 +1,10 @@
+scenario_name: reg_ops
+scenario_id: SCENARIO_REG_OPS
+autobuild_enabled: true
+reset_after: true
+num_writes: 16
+num_reads: 16
+inject_errors: false
+viral_check: false
+wait_timeout_value: 500
+

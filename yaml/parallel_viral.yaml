@@ -1,0 +1,10 @@
+scenario_name: parallel_viral
+scenario_id: SCENARIO_PARALLEL_TRAFFIC_VIRAL
+autobuild_enabled: true
+reset_after: false
+num_writes: 128
+num_reads: 64
+inject_errors: false
+viral_check: true
+wait_timeout_value: 500
+

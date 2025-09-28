@@ -1,0 +1,54 @@
+# UVM Self-Populating Stimulus POC (VCS)
+
+This is a **proof-of-concept** UVM testbench implementing:
+- **ActionExecutor** registry (no if-else chain)
+- **PARALLEL_GROUP** actions
+- **Auto-Builder** that **self-populates** stimulus from **YAML constraints**
+- **ScenarioCfg** abstraction
+- **Self-checks, interrupt checks, error handling flags**
+- **Coverage collection**
+- **Proper UVM logging** (no `$display`)
+
+> Runs on Synopsys **VCS** with UVM-1.2.
+
+## Structure
+
+```
+src/
+  dut/                 # simple DUT + interface
+  tb/
+    pkgs/              # types, scenario config, action executors
+    agent/             # sequencer/driver/monitor
+    sequences/         # base flexible stimulus
+    coverage/          # simple coverage model
+    tests/             # 5 example tests
+    top.sv             # top + run
+yaml/                  # 5 example YAMLs (subset grammar)
+tools/yaml2sv.py       # converts YAML -> scenario_config_pkg.sv
+Makefile               # build/run/regress/cov
+```
+
+## Quick Start
+
+```bash
+# 1) Convert YAML constraints to SV package (subset YAML parser, no deps)
+python3 tools/yaml2sv.py yaml src/tb/pkgs/scenario_config_pkg.sv
+
+# 2) Build
+make
+
+# 3) Run one test
+make one TEST=avry_test_reset_traffic SCEN=reset_traffic
+
+# 4) Regression (5 tests)
+make regress
+
+# 5) Coverage (HTML in cov_html/)
+make cov
+```
+
+## Notes
+- YAML grammar is a **small subset** (see `tools/yaml2sv.py`). 
+- For custom scenarios: add a file under `yaml/` and re-run the converter.
+- All logging uses UVM macros.
+

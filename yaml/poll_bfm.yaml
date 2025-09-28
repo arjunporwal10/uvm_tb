@@ -1,0 +1,10 @@
+scenario_name: poll_bfm
+scenario_id: SCENARIO_PARALLEL_POLL_BFM
+autobuild_enabled: true
+reset_after: false
+num_writes: 200
+num_reads: 0
+inject_errors: false
+viral_check: true
+wait_timeout_value: 500
+
