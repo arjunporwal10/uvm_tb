@@ -1,6 +1,7 @@
 package stimulus_auto_builder_pkg;
   import uvm_pkg::*;
   import avry_types_pkg::*;
+  import action_executors_pkg::*;
   `include "uvm_macros.svh"
 
   class stimulus_auto_builder;
@@ -65,12 +66,15 @@ package stimulus_auto_builder_pkg;
     endfunction
 
     static function stimulus_action_t build_link_degrade();
-      link_degrade_action_executor exec = link_degrade_action_executor::type_id::create("link_degrade_exec");
       stimulus_action_t action = stimulus_action_t::type_id::create("link_degrade_action");
+      link_degrade_executor exec = link_degrade_executor::type_id::create("link_degrade_exec");
       action.set_executor(exec);
+      action.action_type = "LINK_DEGRADE";
+      action.action_data = null; // or your payload
       return action;
     endfunction
-    
+
+     
   endclass
 endpackage
 

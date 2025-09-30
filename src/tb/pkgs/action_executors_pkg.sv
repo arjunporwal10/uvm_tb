@@ -225,20 +225,11 @@ package action_executors_pkg;
     endfunction
   
     virtual task execute(stimulus_action_t a);
-      link_degrade_action_data d;
-  
-      if (!$cast(d, a.action_data)) begin
-        `uvm_error("LINK_DEGRADE", "Payload cast failed.")
-        return;
-      end
-  
-      `uvm_info("LINK_DEGRADE", $sformatf("Degrading link to %s after %0d cycles",
-                  d.degrade_type, d.delay_cycles), UVM_MEDIUM)
-  
-      // Insert your DUT or BFM logic here
-      // Example: host_bfm.degrade_link(d.degrade_type, d.delay_cycles);
-  endtask
-endclass
+      `uvm_info(get_type_name(), "Executing LINK_DEGRADE action", UVM_MEDIUM)
+      // Actual link degrade code here...
+    endtask
+  endclass
+
 
 endpackage
 

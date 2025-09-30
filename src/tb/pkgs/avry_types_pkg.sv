@@ -55,18 +55,28 @@ package avry_types_pkg;
     endfunction
   endclass
 
-  // Generic action container
   class stimulus_action_t extends uvm_object;
-    string     action_type;  // e.g. "RESET", "TRAFFIC", "PARALLEL_GROUP"
-    uvm_object action_data;  // payload specific to action_type (may be null)
-
+    string     action_type;
+    uvm_object action_data;
+  
+    stimulus_action_executor_base executor;  // FIX: use the base type
+  
     `uvm_object_utils_begin(stimulus_action_t)
       `uvm_field_string(action_type, UVM_ALL_ON)
       `uvm_field_object(action_data, UVM_ALL_ON)
     `uvm_object_utils_end
-
+  
     function new(string name="stimulus_action_t");
       super.new(name);
+      executor = null;
+    endfunction
+  
+    function void set_executor(stimulus_action_executor_base exec);
+      this.executor = exec;
+    endfunction
+  
+    function stimulus_action_executor_base get_executor();
+      return executor;
     endfunction
   endclass
 
