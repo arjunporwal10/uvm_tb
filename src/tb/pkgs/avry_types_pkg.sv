@@ -166,6 +166,52 @@ package avry_types_pkg;
       `uvm_fatal(get_type_name(),"execute() not implemented in base")
     endtask
   endclass
+  // --- Add after traffic_action_data / parallel_group_t declarations ---
+
+  // Register write payload
+  class reg_write_action_data extends uvm_object;
+    rand bit [31:0] addr;
+    rand bit [31:0] data;
+    `uvm_object_utils_begin(reg_write_action_data)
+      `uvm_field_int(addr, UVM_ALL_ON)
+      `uvm_field_int(data, UVM_ALL_ON)
+    `uvm_object_utils_end
+    function new(string name="reg_write_action_data"); super.new(name); endfunction
+  endclass
+
+  // Register read payload
+  class reg_read_action_data extends uvm_object;
+    rand bit [31:0] addr;
+    `uvm_object_utils_begin(reg_read_action_data)
+      `uvm_field_int(addr, UVM_ALL_ON)
+    `uvm_object_utils_end
+    function new(string name="reg_read_action_data"); super.new(name); endfunction
+  endclass
+
+  // Viral wait payload
+  class wait_viral_action_data extends uvm_object;
+    string expected_state; // e.g., "VIRAL_ACTIVE"
+    int    timeout;        // cycles or time units per your TB policy
+    `uvm_object_utils_begin(wait_viral_action_data)
+      `uvm_field_string(expected_state, UVM_ALL_ON)
+      `uvm_field_int(timeout, UVM_ALL_ON)
+    `uvm_object_utils_end
+    function new(string name="wait_viral_action_data"); super.new(name); endfunction
+  endclass
+
+  class link_degrade_action_data extends uvm_object;
+    string degrade_type;
+    int    delay_cycles;
+  
+    `uvm_object_utils_begin(link_degrade_action_data)
+      `uvm_field_string(degrade_type,  UVM_ALL_ON)
+      `uvm_field_int   (delay_cycles,  UVM_ALL_ON)
+    `uvm_object_utils_end
+  
+    function new(string name = "link_degrade_action_data");
+      super.new(name);
+    endfunction
+  endclass
 
 endpackage
 

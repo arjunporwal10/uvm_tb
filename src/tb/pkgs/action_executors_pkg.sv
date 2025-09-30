@@ -3,141 +3,242 @@ package action_executors_pkg;
   import avry_types_pkg::*;
   `include "uvm_macros.svh"
 
-  typedef class traffic_action_executor;
-  typedef class reset_action_executor;
-  typedef class viral_check_action_executor;
-  typedef class error_inject_action_executor;
-  typedef class self_check_action_executor;
-  typedef class parallel_group_action_executor;
-  typedef class serial_group_action_executor;
-  typedef class logging_template_action_executor;
+  // ----------------------------------------------------------------------------
+  // Minimal registry: maps action_type -> executor object (one per sequence run)
+  // ----------------------------------------------------------------------------
+  class executor_registry;
+    static protected stimulus_action_executor_base m[string];
 
-  // Registry: map string key -> executor handle
-  class executor_registry extends uvm_object;
-    typedef uvm_resource_db#(stimulus_action_executor_base) exec_db_t;
-    `uvm_object_utils(executor_registry)
-    function new(string name="executor_registry"); super.new(name); endfunction
-    static function void register(string key, stimulus_action_executor_base obj);
-      exec_db_t::set({"EXEC_",key}, "handle", obj, null);
+    static function void register(string t, stimulus_action_executor_base e);
+      m[t] = e;
     endfunction
-    static function stimulus_action_executor_base get(string key);
-      stimulus_action_executor_base h; exec_db_t::read_by_name({"EXEC_",key},"handle",h); return h;
+
+    static function stimulus_action_executor_base get(string t);
+      if (!m.exists(t)) return null;
+      return m[t];
+    endfunction
+
+    static function bit exists(string t);
+      return m.exists(t);
+    endfunction
+
+    static function void clear();
+      foreach (m[k]) m.delete(k);
     endfunction
   endclass
 
+  // Base class is declared in avry_types_pkg
+  // class stimulus_action_executor_base extends uvm_object; ... endclass
+
+  // ----------------------------------------------------------------------------
+  // Utility: access VIF if needed
+  // ----------------------------------------------------------------------------
+  // If executors need the bus vif, fetch it from config_db when they run.
+  function automatic virtual simple_bus_if get_vif_or_null();
+    virtual simple_bus_if vif;
+    if (!uvm_config_db#(virtual simple_bus_if)::get(null, "uvm_test_top.env.*", "vif", vif))
+      return null;
+    return vif;
+  endfunction
+
+  // ----------------------------------------------------------------------------
   // RESET
+  // ----------------------------------------------------------------------------
   class reset_action_executor extends stimulus_action_executor_base;
     `uvm_object_utils(reset_action_executor)
     function new(string name="reset_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
-      `uvm_info(get_type_name(),"RESET start",UVM_MEDIUM) #10ns; `uvm_info(get_type_name(),"RESET done",UVM_MEDIUM)
+      `uvm_info(get_type_name(), "Executing RESET", UVM_MEDIUM)
+      // TB-wide reset policy could be:
+      //   - toggle top-level rst
+      //   - or drive a SW reset via bus
+      // Here we no-op to keep DUT reset controlled in top.sv; leave hook:
+      // `uvm_info(...,"RESET hook: add TB reset toggling if desired",UVM_LOW)
+      #10;
     endtask
   endclass
 
-  // TRAFFIC (executor only logs; the sequence drives items)
+  // ----------------------------------------------------------------------------
+  // TRAFFIC
+  // ----------------------------------------------------------------------------
   class traffic_action_executor extends stimulus_action_executor_base;
     `uvm_object_utils(traffic_action_executor)
     function new(string name="traffic_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
-      traffic_action_data d; string dir_s;
-      if (!$cast(d,a.action_data)) begin `uvm_error(get_type_name(),"Missing traffic_action_data"); return; end
-      if (d.direction==DIR_WRITE) dir_s="WRITE"; else dir_s="READ";
-      `uvm_info(get_type_name(),$sformatf("TRAFFIC %s num=%0d (executor log; seq drives)",dir_s,d.num_packets),UVM_MEDIUM)
-      repeat (d.num_packets) #1ns;
-      `uvm_info(get_type_name(),"TRAFFIC complete",UVM_MEDIUM)
+      traffic_action_data d;
+      if (!$cast(d, a.action_data)) begin
+        `uvm_error(get_type_name(), "TRAFFIC missing traffic_action_data"); return;
+      end
+
+      `uvm_info(get_type_name(),
+        $sformatf("TRAFFIC: dir=%s count=%0d",
+          (d.direction==DIR_WRITE)?"WRITE":"READ", d.num_packets), UVM_MEDIUM)
+
+      // NOTE: Real driving of items happens in the sequence (so sequencer/driver are used).
+      // This executor is a placeholder if you want side effects, e.g., modify CommonMdl, etc.
+      #1;
     endtask
   endclass
 
-  // VIRAL_CHECK
-  class viral_check_action_executor extends stimulus_action_executor_base;
-    `uvm_object_utils(viral_check_action_executor)
-    function new(string name="viral_check_action_executor"); super.new(name); endfunction
+  // ----------------------------------------------------------------------------
+  // WAIT_VIRAL  (or VIRAL_CHECK legacy)
+  // ----------------------------------------------------------------------------
+  class wait_viral_action_executor extends stimulus_action_executor_base;
+    `uvm_object_utils(wait_viral_action_executor)
+    function new(string name="wait_viral_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
-      `uvm_info(get_type_name(),"WAIT_VIRAL start",UVM_MEDIUM) #100ns; `uvm_info(get_type_name(),"WAIT_VIRAL done",UVM_MEDIUM)
+      wait_viral_action_data d;
+      if (!$cast(d, a.action_data)) begin
+        `uvm_error(get_type_name(), "WAIT_VIRAL missing wait_viral_action_data"); return;
+      end
+      `uvm_info(get_type_name(),
+        $sformatf("WAIT_VIRAL: state=%s timeout=%0d", d.expected_state, d.timeout), UVM_MEDIUM)
+      // Example TB policy: just wait 'timeout' cycles; in real TB, poll a status register/AP
+      repeat (d.timeout) #1;
     endtask
   endclass
 
+  // ----------------------------------------------------------------------------
   // ERROR_INJECTION
+  // ----------------------------------------------------------------------------
   class error_inject_action_executor extends stimulus_action_executor_base;
     `uvm_object_utils(error_inject_action_executor)
     function new(string name="error_inject_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
-      `uvm_info(get_type_name(),"ERROR INJECTION start",UVM_MEDIUM) #10ns; `uvm_info(get_type_name(),"ERROR INJECTION done",UVM_MEDIUM)
+      `uvm_info(get_type_name(), "ERROR_INJECTION: injecting demo error", UVM_MEDIUM)
+      // Hook: demote/promote errors, set error knobs, flip bits, etc.
+      #1;
     endtask
   endclass
 
+  // ----------------------------------------------------------------------------
   // SELF_CHECK
+  // ----------------------------------------------------------------------------
   class self_check_action_executor extends stimulus_action_executor_base;
     `uvm_object_utils(self_check_action_executor)
     function new(string name="self_check_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
-      `uvm_info(get_type_name(),"SELF-CHECK invoked",UVM_MEDIUM) #1ns; `uvm_info(get_type_name(),"SELF-CHECK done",UVM_MEDIUM)
+      `uvm_info(get_type_name(), "SELF_CHECK: placeholder (scoreboard compare)", UVM_MEDIUM)
+      // Hook: call scoreboard / model check here
+      #1;
     endtask
   endclass
 
+  // ----------------------------------------------------------------------------
+  // REG_WRITE
+  // ----------------------------------------------------------------------------
+  class reg_write_action_executor extends stimulus_action_executor_base;
+    `uvm_object_utils(reg_write_action_executor)
+    function new(string name="reg_write_action_executor"); super.new(name); endfunction
+    virtual task execute(stimulus_action_t a);
+      reg_write_action_data d;
+      if (!$cast(d, a.action_data)) begin
+        `uvm_error(get_type_name(), "REG_WRITE missing reg_write_action_data"); return;
+      end
+      `uvm_info(get_type_name(),
+        $sformatf("REG_WRITE: [0x%08h] <= 0x%08h", d.addr, d.data), UVM_MEDIUM)
+      // Hook: if you have a register model, call reg-model write here.
+      // In this PoC, we just wait 1 to simulate work.
+      #1;
+    endtask
+  endclass
+
+  // ----------------------------------------------------------------------------
+  // REG_READ
+  // ----------------------------------------------------------------------------
+  class reg_read_action_executor extends stimulus_action_executor_base;
+    `uvm_object_utils(reg_read_action_executor)
+    function new(string name="reg_read_action_executor"); super.new(name); endfunction
+    virtual task execute(stimulus_action_t a);
+      reg_read_action_data d;
+      if (!$cast(d, a.action_data)) begin
+        `uvm_error(get_type_name(), "REG_READ missing reg_read_action_data"); return;
+      end
+      `uvm_info(get_type_name(),
+        $sformatf("REG_READ: [0x%08h]", d.addr), UVM_MEDIUM)
+      // Hook: if you have a register model, call reg-model read here.
+      #1;
+    endtask
+  endclass
+
+  // ----------------------------------------------------------------------------
   // PARALLEL_GROUP
+  // ----------------------------------------------------------------------------
   class parallel_group_action_executor extends stimulus_action_executor_base;
     `uvm_object_utils(parallel_group_action_executor)
     function new(string name="parallel_group_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
-      parallel_group_t par_cfg; int j;
-      if (!$cast(par_cfg,a.action_data)) begin `uvm_error(get_type_name(),"PARALLEL_GROUP missing payload"); return; end
-      `uvm_info(get_type_name(),$sformatf("PARALLEL_GROUP start (N=%0d)",par_cfg.parallel_actions.size()),UVM_MEDIUM)
+      parallel_group_t p; integer j;
+      if (!$cast(p, a.action_data)) begin
+        `uvm_error(get_type_name(), "PARALLEL_GROUP missing parallel_group_t"); return;
+      end
+      `uvm_info(get_type_name(), $sformatf("PARALLEL_GROUP: %0d actions", p.parallel_actions.size()), UVM_MEDIUM)
       fork
-        foreach (par_cfg.parallel_actions[j]) begin : LAUNCH
-          automatic stimulus_action_t sub_a = par_cfg.parallel_actions[j];
+        for (j=0; j<p.parallel_actions.size(); j++) begin
+          automatic stimulus_action_t sub = p.parallel_actions[j];
           fork
-            begin
-              stimulus_action_executor_base sub_ex;
-              sub_ex = executor_registry::get(sub_a.action_type);
-              `uvm_info(get_type_name(),
-                $sformatf("Sub[%0d] START: %s",j,sub_a.action_type),UVM_LOW)
-              if (sub_ex==null)
-                `uvm_error(get_type_name(),$sformatf("No executor for %s",sub_a.action_type))
-              else
-                sub_ex.execute(sub_a);
-              `uvm_info(get_type_name(),
-                $sformatf("Sub[%0d] END: %s",j,sub_a.action_type),UVM_LOW)
+            if (!executor_registry::exists(sub.action_type)) begin
+              `uvm_error(get_type_name(),
+                $sformatf("No handler for Parallel Action Type: %s", sub.action_type))
+            end
+            else begin
+              executor_registry::get(sub.action_type).execute(sub);
             end
           join_none
         end
       join
-      `uvm_info(get_type_name(),"PARALLEL_GROUP end",UVM_MEDIUM)
+      `uvm_info(get_type_name(), "PARALLEL_GROUP complete", UVM_LOW)
     endtask
   endclass
 
-  // SERIAL_GROUP
+  // ----------------------------------------------------------------------------
+  // SERIAL_GROUP (reuses parallel_group_t container for convenience)
+  // ----------------------------------------------------------------------------
   class serial_group_action_executor extends stimulus_action_executor_base;
     `uvm_object_utils(serial_group_action_executor)
     function new(string name="serial_group_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
-      parallel_group_t ser_cfg; int i;
-      if (!$cast(ser_cfg,a.action_data)) begin `uvm_error(get_type_name(),"SERIAL_GROUP missing payload"); return; end
-      `uvm_info(get_type_name(),$sformatf("SERIAL_GROUP start (N=%0d)",ser_cfg.parallel_actions.size()),UVM_MEDIUM)
-      for (i=0;i<ser_cfg.parallel_actions.size();i++) begin
-        stimulus_action_t sub_a; stimulus_action_executor_base ex;
-        sub_a = ser_cfg.parallel_actions[i];
-        ex    = executor_registry::get(sub_a.action_type);
-        `uvm_info(get_type_name(),
-          $sformatf("Serial[%0d] START: %s",i,sub_a.action_type),UVM_LOW)
-        if (ex==null) `uvm_error(get_type_name(),$sformatf("No executor for %s",sub_a.action_type))
-        else ex.execute(sub_a);
-        `uvm_info(get_type_name(),
-          $sformatf("Serial[%0d] END: %s",i,sub_a.action_type),UVM_LOW)
+      parallel_group_t p; integer j;
+      if (!$cast(p, a.action_data)) begin
+        `uvm_error(get_type_name(), "SERIAL_GROUP missing parallel_group_t"); return;
       end
-      `uvm_info(get_type_name(),"SERIAL_GROUP end",UVM_MEDIUM)
+      `uvm_info(get_type_name(), $sformatf("SERIAL_GROUP: %0d actions", p.parallel_actions.size()), UVM_MEDIUM)
+      for (j=0; j<p.parallel_actions.size(); j++) begin
+        stimulus_action_t sub = p.parallel_actions[j];
+        if (!executor_registry::exists(sub.action_type)) begin
+          `uvm_error(get_type_name(),
+            $sformatf("No handler for Serial Action Type: %s", sub.action_type))
+        end
+        else begin
+          executor_registry::get(sub.action_type).execute(sub);
+        end
+      end
+      `uvm_info(get_type_name(), "SERIAL_GROUP complete", UVM_LOW)
     endtask
   endclass
 
-  // Logging template (for quick stubs)
-  class logging_template_action_executor extends stimulus_action_executor_base;
-    `uvm_object_utils(logging_template_action_executor)
-    function new(string name="logging_template_action_executor"); super.new(name); endfunction
-    virtual task execute(stimulus_action_t action);
-      `uvm_info(get_type_name(),$sformatf("Executing %s",action.action_type),UVM_MEDIUM)
-      `uvm_info(get_type_name(),$sformatf("Completed %s",action.action_type),UVM_MEDIUM)
-    endtask
-  endclass
+  class link_degrade_executor extends stimulus_action_executor_base;
+    `uvm_object_utils(link_degrade_executor)
+  
+    function new(string name="link_degrade_executor");
+      super.new(name);
+    endfunction
+  
+    virtual task execute(stimulus_action_t a);
+      link_degrade_action_data d;
+  
+      if (!$cast(d, a.action_data)) begin
+        `uvm_error("LINK_DEGRADE", "Payload cast failed.")
+        return;
+      end
+  
+      `uvm_info("LINK_DEGRADE", $sformatf("Degrading link to %s after %0d cycles",
+                  d.degrade_type, d.delay_cycles), UVM_MEDIUM)
+  
+      // Insert your DUT or BFM logic here
+      // Example: host_bfm.degrade_link(d.degrade_type, d.delay_cycles);
+  endtask
+endclass
 
 endpackage
 

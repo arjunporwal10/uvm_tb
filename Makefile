@@ -7,9 +7,9 @@ SRCS=\
  src/dut/simple_bus_if.sv \
  src/dut/simple_dut.sv \
  src/tb/pkgs/avry_types_pkg.sv \
+ src/tb/stimulus_auto_builder.sv \
  src/tb/pkgs/scenario_config_pkg.sv \
  src/tb/pkgs/action_executors_pkg.sv \
- src/tb/stimulus_auto_builder.sv \
  src/tb/agent/avry_item.sv \
  src/tb/agent/avry_sequencer.sv \
  src/tb/coverage/avry_cov.sv \

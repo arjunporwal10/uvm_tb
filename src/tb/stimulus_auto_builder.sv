@@ -63,6 +63,14 @@ package stimulus_auto_builder_pkg;
       p = new(); for (i=0;i<subs.size();i++) p.parallel_actions.push_back(subs[i]);
       a.action_data = p; return a;
     endfunction
+
+    static function stimulus_action_t build_link_degrade();
+      link_degrade_action_executor exec = link_degrade_action_executor::type_id::create("link_degrade_exec");
+      stimulus_action_t action = stimulus_action_t::type_id::create("link_degrade_action");
+      action.set_executor(exec);
+      return action;
+    endfunction
+    
   endclass
 endpackage
 

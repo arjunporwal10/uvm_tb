@@ -25,18 +25,29 @@ package avry_seq_pkg;
 
     virtual task body();
       string scen;
-      if (!$value$plusargs("SCENARIO=%s", scen)) scen="reset_traffic";
-      cfg = scenario_config_pkg::get_scenario_by_name(scen);
-      `uvm_info(get_type_name(), $sformatf("Using scenario: %s", scen), UVM_MEDIUM)
+      // 1) Prefer a scenario_cfg injected via config_db
+      if (!uvm_config_db#(avry_scenario_cfg)::get(null, "*", "scenario_cfg", cfg)) begin
+        // 2) Else, fall back to +SCENARIO=<name>, default "reset_traffic"
+        if (!$value$plusargs("SCENARIO=%s", scen)) scen = "reset_traffic";
+        cfg = scenario_config_pkg::get_scenario_by_name(scen);
+        `uvm_info(get_type_name(), $sformatf("Using scenario from plusarg/name: %s", scen), UVM_MEDIUM)
+      end
+      else begin
+        `uvm_info(get_type_name(), $sformatf("Using scenario injected via config_db: %s", cfg.scenario_name), UVM_MEDIUM)
+      end
 
       // Register executors (only once per seq instance)
       executor_registry::register("RESET",           reset_action_executor::type_id::create("reset_exec"));
       executor_registry::register("TRAFFIC",         traffic_action_executor::type_id::create("traf_exec"));
-      executor_registry::register("VIRAL_CHECK",     viral_check_action_executor::type_id::create("viral_exec"));
+      executor_registry::register("WAIT_VIRAL",       wait_viral_action_executor::type_id::create("waitv_exec")); // NEW
       executor_registry::register("ERROR_INJECTION", error_inject_action_executor::type_id::create("err_exec"));
       executor_registry::register("SELF_CHECK",      self_check_action_executor::type_id::create("self_exec"));
-      executor_registry::register("PARALLEL_GROUP",  parallel_group_action_executor::type_id::create("par_exec"));
-      executor_registry::register("SERIAL_GROUP",    serial_group_action_executor::type_id::create("ser_exec"));
+      executor_registry::register("PARALLEL_GROUP",   parallel_group_action_executor::type_id::create("par_exec"));
+      executor_registry::register("SERIAL_GROUP",     serial_group_action_executor::type_id::create("ser_exec"));
+      executor_registry::register("REG_WRITE",        reg_write_action_executor::type_id::create("regw_exec"));   // NEW
+      executor_registry::register("REG_READ",         reg_read_action_executor::type_id::create("regr_exec"));    // NEW
+      executor_registry::register("LINK_DEGRADE", link_degrade_executor::type_id::create("ldg_exec"));
+      
 
       // Build action list (from YAML or auto-builder fallback)
       if (cfg.autobuild_enabled && cfg.action_list.size()==0) begin
