@@ -48,13 +48,14 @@ package action_executors_pkg;
     `uvm_object_utils(reset_action_executor)
     function new(string name="reset_action_executor"); super.new(name); endfunction
     virtual task execute(stimulus_action_t a);
+      #15;
       `uvm_info(get_type_name(), "Executing RESET", UVM_MEDIUM)
       // TB-wide reset policy could be:
       //   - toggle top-level rst
       //   - or drive a SW reset via bus
       // Here we no-op to keep DUT reset controlled in top.sv; leave hook:
       // `uvm_info(...,"RESET hook: add TB reset toggling if desired",UVM_LOW)
-      #10;
+      #15;
     endtask
   endclass
 
@@ -70,13 +71,14 @@ package action_executors_pkg;
         `uvm_error(get_type_name(), "TRAFFIC missing traffic_action_data"); return;
       end
 
+      #7;
       `uvm_info(get_type_name(),
         $sformatf("TRAFFIC: dir=%s count=%0d",
           (d.direction==DIR_WRITE)?"WRITE":"READ", d.num_packets), UVM_MEDIUM)
 
       // NOTE: Real driving of items happens in the sequence (so sequencer/driver are used).
       // This executor is a placeholder if you want side effects, e.g., modify CommonMdl, etc.
-      #1;
+      #7;
     endtask
   endclass
 
@@ -225,7 +227,9 @@ package action_executors_pkg;
     endfunction
   
     virtual task execute(stimulus_action_t a);
+      #3;
       `uvm_info(get_type_name(), "Executing LINK_DEGRADE action", UVM_MEDIUM)
+      #3;
       // Actual link degrade code here...
     endtask
   endclass
