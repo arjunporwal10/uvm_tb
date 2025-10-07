@@ -1,0 +1,14 @@
+name: Verible SV Lint
+on:
+  pull_request:
+    paths: ["**/*.sv", "**/*.svh", "**/*.py"]
+jobs:
+  verible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chipsalliance/verible-linter-action@main
+        with:
+          paths: .
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reviewdog_reporter: github-pr-review
